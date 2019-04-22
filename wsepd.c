@@ -70,7 +70,7 @@
 #define RST_DELAY_MS 200	/* GPIO reset time delay (ms) */
 #define BUSY_DELAY_MS 100	/* GPIO busy wait time (ms) */
 
-/* Waveshare EPD module hex commands */
+/* Waveshare EPD module commands */
 enum EPD_COMMANDS
     { DRIVER_OUTPUT_CONTROL                  = 0x01,
       BOOSTER_SOFT_START_CONTROL             = 0x0C,
@@ -103,7 +103,7 @@ enum BCM_EPD_PINS
 /* GPIO output level (typically 0V low, 3.3V high)  */
 enum GPIO_OUTPUT_LEVEL { GPIO_LOW, GPIO_HIGH };
 
-/* Look up tables for module register */
+/* Waveshare look up tables for module register */
 static const uint8_t lut_full_update[] =
     { 0x02, 0x02, 0x01, 0x11, 0x12, 0x12, 0x22, 0x22,
       0x66, 0x69, 0x69, 0x59, 0x58, 0x99, 0x99, 0x88,
