@@ -17,36 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with libwsepd.  If not, see <https://www.gnu.org/licenses/>.
  * 
- * Derivative works:
- *
- * Portions of this source file used for interfacing with the hardware
- * (look up tables and the epd commands enum), are indirectly derived from
- * EPD_2in9.c, available at <https://github.com/waveshare/e-Paper>.
- *
- * These portions alone are consequently Copyright (c) 2017 Waveshare,
- * and were originally released under the licence below which has been
- * marked with '#'. This licence permitted the subsequent re-licencing
- * under the GPLv3 and so does not constitute the licence of this
- * program as a whole.
- *
- # Permission is hereby granted, free of charge, to any person obtaining a copy
- # of this software and associated documnetation files (the "Software"), to deal
- # in the Software without restriction, including without limitation the rights
- # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- # copies of the Software, and to permit persons to  whom the Software is
- # furished to do so, subject to the following conditions:
- #
- # The above copyright notice and this permission notice shall be included in
- # all copies or substantial portions of the Software.
- #
- # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- # FITNESS OR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- # LIABILITY WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
- # THE SOFTWARE.
- *
  * Description:
  *
  * Implementation of libwsepd.a interface. See libwsepd.h for
@@ -64,35 +34,12 @@
 
 #include "libwsepd.h"
 #include "wsepd_signal.h"
+#include "waveshare2.9.h"
 
 #define SPI_CLK_HZ 32000000	/* SPI clock speed (Hz) */
 #define PI_CHANNEL 0		/* RPi has two channels */
 #define RST_DELAY_MS 200	/* GPIO reset time delay (ms) */
 #define BUSY_DELAY_MS 100	/* GPIO busy wait time (ms) */
-
-/* Waveshare EPD module commands */
-enum EPD_COMMANDS
-    { DRIVER_OUTPUT_CONTROL                  = 0x01,
-      BOOSTER_SOFT_START_CONTROL             = 0x0C,
-      GATE_SCAN_START_POSITION               = 0x0F,
-      DEEP_SLEEP_MODE                        = 0x10,
-      DATA_ENTRY_MODE_SETTING                = 0x11,
-      SW_RESET                               = 0x12,
-      TEMPERATURE_SENSOR_CONTROL             = 0x1A,
-      MASTER_ACTIVATION                      = 0x20,
-      DISPLAY_UPDATE_CONTROL_1               = 0x21,
-      DISPLAY_UPDATE_CONTROL_2               = 0x22,
-      WRITE_RAM                              = 0x24,
-      WRITE_VCOM_REGISTER                    = 0x2C,
-      WRITE_LUT_REGISTER                     = 0x32,
-      SET_DUMMY_LINE_PERIOD                  = 0x3A,
-      SET_GATE_TIME                          = 0x3B,
-      BORDER_WAVEFORM_CONTROL                = 0x3C,
-      SET_RAM_X_ADDRESS_START_END_POSITION   = 0x44,
-      SET_RAM_Y_ADDRESS_START_END_POSITION   = 0x45,
-      SET_RAM_X_ADDRESS_COUNTER              = 0x4E,
-      SET_RAM_Y_ADDRESS_COUNTER              = 0x4F,
-      TERMINATE_FRAME_READ_WRITE             = 0xFF };
 
 /* GPIO pins in BCM numbering format, named by connected interface on
    e-paper module */
@@ -102,19 +49,6 @@ enum BCM_EPD_PINS
 
 /* GPIO output level (typically 0V low, 3.3V high)  */
 enum GPIO_OUTPUT_LEVEL { GPIO_LOW, GPIO_HIGH };
-
-/* Waveshare look up tables for module register */
-static const uint8_t lut_full_update[] =
-    { 0x02, 0x02, 0x01, 0x11, 0x12, 0x12, 0x22, 0x22,
-      0x66, 0x69, 0x69, 0x59, 0x58, 0x99, 0x99, 0x88,
-      0x00, 0x00, 0x00, 0x00, 0xF8, 0xB4, 0x13, 0x51,
-      0x35, 0x51, 0x51, 0x19, 0x01, 0x00 };
-
-/* static const uint8_t lut_partial_update[] = */
-/*   { 0x10, 0x18, 0x18, 0x08, 0x18, 0x18, 0x08, 0x00, */
-/*     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, */
-/*     0x00, 0x00, 0x00, 0x00, 0x13, 0x14, 0x44, 0x12, */
-/*     0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; */
 
 /* A bitmap representing the e-paper dispay screen */
 struct bitmap {
@@ -152,8 +86,8 @@ static int init_epd(struct Epd *Display);
 /* EPD commands */
 static void set_display_window(struct Epd *Display, size_t *sizes);
 static void set_cursor(uint16_t x, uint16_t y);
-static void wait_while_busy(void);
-static void load_display_from_ram(void);
+static int wait_while_busy(void);
+static int load_display_from_ram(void);
 static void reset_epd(void);
 
 /* Bitmap manipulation and application */
@@ -170,6 +104,7 @@ spi_comms(int channel, uint8_t *out_buf, int len)
 {
     int spi_in = wiringPiSPIDataRW(channel, out_buf, len);
     if (spi_in < 0) {
+	errno = EREMOTEIO;
 	log_err("SPI I/O error.");
     }
     return (spi_in < 0) ? 1 : 0;
@@ -207,11 +142,11 @@ init_gpio(void)
 {
     wiringPiSetupGpio();	/* fatal on failure */
 
-    /* warning resets errno */
     switch (errno) {
     case EACCES:
-	log_warn("Running without root privileges, "
-		 "This may work dependant on hardware configuration.");
+    /* warning resets errno set by wiringPi */
+	log_warn("Running without root privileges,\n\t"
+		 "this may work dependant on hardware configuration.");
     case 0:
 	break;
     default:
@@ -238,11 +173,19 @@ init_gpio(void)
 static int
 init_epd(struct Epd *Display)
 {
+    if (Display->poweron) {
+	errno = EALREADY;
+	log_warn("Attempt made to initialise active device.");
+	return 0;
+    } else { 
+	Display->poweron = 1;
+    }
+
     /* Interrupts need to be blocked while device is active as leaving
        the device powered on for extended periods of time can cause
        damage */
-    Display->poweron = 1;
     start_signal_handler();
+
     reset_epd();
 
     int rc = send_command_byte(DRIVER_OUTPUT_CONTROL);
@@ -300,6 +243,7 @@ init_epd(struct Epd *Display)
     
     return 0;
  out:
+    errno = EREMOTEIO;
     log_err("Failed to initialise e-paper display module.");
     return 1;
 }
@@ -373,18 +317,30 @@ set_cursor(uint16_t x, uint16_t y)
     return;
 }
 
-/* Hang until busy pin reads low */
-static void
+/* Wait until busy pin reads low. Return wait time (in ms) or -1 if
+   the wait time was greater than 100x BUSY_DELAY_MS.  */
+static int
 wait_while_busy(void)
 {
-    while (digitalRead(BUSY_PIN) == GPIO_HIGH)
-	delay(BUSY_DELAY_MS);
+    int t = 0;
+    while (digitalRead(BUSY_PIN) == GPIO_HIGH) {
 
-    return;
+	if (t > 100) {
+	    errno = EBUSY;
+	    log_err("Device not leaving busy state. Is power connected?");
+	    return -1;
+	}
+
+	delay(BUSY_DELAY_MS);
+	++t;
+    }
+
+   return t * BUSY_DELAY_MS;
 }
 
-/* Apply the bitmap in RAM to the e-paper display */
-static void
+/* Apply the bitmap in RAM to the e-paper display, returns 1 if busy
+   line is held low for too long (see wait_while_busy). */
+static int
 load_display_from_ram(void)
 {
     send_command_byte(DISPLAY_UPDATE_CONTROL_2);
@@ -393,9 +349,13 @@ load_display_from_ram(void)
     send_command_byte(MASTER_ACTIVATION);
     send_command_byte(TERMINATE_FRAME_READ_WRITE);
 
-    wait_while_busy();
-
-    return;
+    if (wait_while_busy() < 0) {
+	errno = EBUSY;
+	log_err("Failed to load display from RAM.");
+	return 1;
+    }
+    
+    return 0;
 }
 
 /* Resets the e-paper display by stepping the reset pin low for
@@ -426,7 +386,7 @@ bitmap_alloc(struct Epd *Display)
        number of pixels in the height (y axis) to determine the number of
        bytes required to describe the entire e-paper display area.  */
 
-    Display->bmp.width = (Display->width % 8)
+    Display->bmp.width = (Display->width % 8 == 0)
 	? Display->width / 8
 	: Display->width / 8 + 1;
 
@@ -456,7 +416,7 @@ bitmap_write_to_ram(struct Epd *Display)
 	}
     }
 
-    if (LOGLEVEL == 3) {
+    if (LOGLEVEL >= 3) {
 	log_info("Applying bitmap");
 	EPD_print_bmp(Display);
     }
@@ -495,8 +455,8 @@ EPD_create(size_t width, size_t height)
 
     Display->width = width;
     Display->height = height;
+    Display->poweron = 0;
 
-    /* EPD must be powered down or it will be damaged */
     if (create_signal_handler())
 	goto out2;
     if (init_epd(Display))
@@ -507,18 +467,22 @@ EPD_create(size_t width, size_t height)
     EPD_sleep(Display);
 
     /* Set some defaults */
-    EPD_set_fgcolour(Display, BLACK);
+    EPD_set_fgcolour(Display, WHITE);
     EPD_set_mirror(Display, MIRROR_FALSE);
     EPD_set_rotation(Display, NONE);
 
-    EPD_clear(Display);
+    if (EPD_clear(Display))
+	goto out3;
+
     delay(500);			/* wiringPi delay */
 
     return Display;
+ out3:
+    free(Display->bmp.buf);
  out2:
     free(Display);
-    Display = NULL;
  out1:
+    errno = ECANCELED;
     log_err("Failed to create e-paper display object");
     return NULL;
 }
@@ -535,16 +499,18 @@ EPD_destroy(struct Epd *Display)
 
     EPD_sleep(Display);
     
-    if (Display->bmp.buf) {
+    if (Display->bmp.buf != NULL) {
 	free(Display->bmp.buf);
-	Display = NULL;
+	Display->bmp.buf = NULL;
     } else {
-	log_warn("No bitmap buffer to free");
+	log_debug("No bitmap buffer to free");
     }
 
     if (Display) {
 	free(Display);
 	Display = NULL;
+    } else {
+	log_debug("No display object to free");
     }
 
     log_debug("Display object cleanup complete");
@@ -556,10 +522,17 @@ EPD_destroy(struct Epd *Display)
 void
 EPD_sleep(struct Epd *Display)
 {
-    if (0 == Display->poweron)
+    if (0 == Display->poweron) {
+	
+	log_debug("Display is already asleep, doing nothing.");
 	return;
+    }
 
-    wait_while_busy();
+    if (wait_while_busy() < 0) {
+	errno = EBUSY;
+	log_err("Failed to sleep device");
+	return;
+    }
 
     send_command_byte(DEEP_SLEEP_MODE);
     send_data_byte(0x01);
@@ -597,9 +570,9 @@ EPD_set_fgcolour(struct Epd *Display, enum DISPLAY_COLOUR value)
     Display->colour = value;
 
     if(Display->colour == WHITE) {
-	log_info("Display colour set to white");
+	log_info("Foreground colour set to white");
     } else {
-	log_info("Display colour set to black");
+	log_info("Foreground colour set to black");
     }
   
     return;
@@ -644,11 +617,26 @@ EPD_get_bmp(struct Epd *Display)
     return Display->bmp.buf;
 }
 
+/* Set the pixels at (x, y) in the bitmap to the foreground colour */
 void
-EPD_draw_point(struct Epd *Display, uint16_t x, uint16_t y)
+EPD_draw_point(struct Epd *Display, size_t x, size_t y)
 {
-    size_t addr = (Display->bmp.width * y) + (x / 8);
-    Display->bmp.buf[addr] = 0x80 >> x % 8;
+    if (x >= Display->width || y >= Display->height) {
+	errno = EINVAL;
+	log_err("Invalid coordinates, must be within %zupxW x %zupxH.",
+		Display->width, Display->height);
+	return;
+    }
+
+    /* Convert 2D coordinates into flat array index and obtain byte of
+       interest (each byte contains the bitmap data for 8 pixels
+       across the width). */
+    size_t byte_addr = (Display->bmp.width * y) + (x / 8);
+    uint8_t *point = Display->bmp.buf + byte_addr;
+
+    /* Set the bit of interest to foreground colour */
+    *point |= 0x80 >> (x % 8);
+    log_debug("Point drawn at pixel (%zu,%zu)", x, y);
 
     return;
 }
@@ -693,27 +681,38 @@ int
 EPD_refresh(struct Epd *Display)
 {
     if (init_epd(Display)) {
-	log_err("Display refresh failed.");
-	return 1;
+	errno = EREMOTEIO;
+	goto out;
     }
 	
     bitmap_write_to_ram(Display);
-    load_display_from_ram();
-    log_info("Display refreshed");
 
+    if (load_display_from_ram()) {
+	errno = EBUSY;
+	goto out;
+    }
+
+    log_info("Display refreshed.");
     EPD_sleep(Display);
     
     return 0;
+ out:
+    log_err("Failed to refresh display.");
+    return 1;
 }
 
-void
+/* Wipe the bitmap and apply the background colour (inverse of
+   fgcolour) to the display. Returns non zero if there is a problem
+   refreshing the display.  */
+int
 EPD_clear(struct Epd *Display)
 {
     /* For full screen usage, window display set from origin to furthest
        possible co-ordinate */
-    set_display_window(Display, NULL);
     bitmap_clear(Display);
-    EPD_refresh(Display);
-  
-    return;
+
+    set_display_window(Display, NULL); // this probably needs to be
+				       // done after init_epd in
+				       // EPD_refresh
+      return EPD_refresh(Display);
 }
