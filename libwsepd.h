@@ -38,7 +38,7 @@ enum DISPLAY_COLOUR { BLACK = 0x00, WHITE = 0xFF };
 enum MIRROR { MIRROR_FALSE, MIRROR_TRUE };
 enum CLEAR { CLEAR_FLASE, CLEAR_TRUE };
 
-typedef struct Epd *EPD;
+typedef struct Epd * EPD;
 
 /* Electrionic Paper Display object */
 EPD EPD_create(size_t width, size_t height);
@@ -57,10 +57,10 @@ enum MIRROR EPD_get_mirror(EPD Display);
 
 /* Image display and manipulation */
 uint8_t *EPD_get_bmp(EPD Display);
-void EPD_draw_point(EPD Display, uint16_t x, uint16_t y);
+void EPD_draw_point(EPD Display, size_t x, size_t y);
 void EPD_print_bmp(EPD Display);
 int EPD_refresh(EPD Display);
-void EPD_clear(EPD Display);
+int EPD_clear(EPD Display);
 /* Send e-paer display module into deep sleep mode */
 
 #endif /* LIBWSEPD_H */
