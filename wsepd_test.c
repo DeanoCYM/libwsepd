@@ -37,6 +37,18 @@ main(int argc, char *argv[])
     log_debug("Testing %s (argc == %d).", argv[0], argc);
 
     EPD Display = EPD_create(WIDTH, HEIGHT);
+    if (Display == NULL) {
+	log_debug("Failed to create object");
+	return 1;
+    }
+	
+    for (int x = 0; x < WIDTH; ++x) {
+	EPD_draw_point(Display, x,20);
+    }
+    
+    EPD_refresh(Display);
+    sleep(20);
+
     EPD_destroy(Display);
 
 
