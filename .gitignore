@@ -1,1 +1,4 @@
 TAGS
+*.o
+*.a
+wsepd_test
