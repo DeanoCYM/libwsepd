@@ -42,12 +42,14 @@ main(int argc, char *argv[])
 	return 1;
     }
 	
-    for (int x = 0; x < WIDTH; ++x) {
-	EPD_draw_point(Display, x,20);
-    }
-    
+    for (size_t x = WIDTH/2,  y = 0; y < HEIGHT; ++y)
+	EPD_draw_point(Display, x, y);
+
+    for (size_t x = 0,  y = HEIGHT/2; x < WIDTH; ++x)
+	EPD_draw_point(Display, x, y);
+
     EPD_refresh(Display);
-    sleep(20);
+    sleep(2);
 
     EPD_destroy(Display);
 

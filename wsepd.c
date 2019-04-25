@@ -102,6 +102,10 @@ static void bitmap_clear(struct Epd *Display);
 static int
 spi_comms(int channel, uint8_t *out_buf, int len)
 {
+    if (LOGLEVEL == 4) {
+	fprintf(stderr, "%02x",out_buf[0]);
+    }
+
     int spi_in = wiringPiSPIDataRW(channel, out_buf, len);
     if (spi_in < 0) {
 	errno = EREMOTEIO;
@@ -115,12 +119,19 @@ spi_comms(int channel, uint8_t *out_buf, int len)
 static int
 send_command_byte(enum EPD_COMMANDS command)
 {
+    if (LOGLEVEL == 4) {
+	fprintf(stderr, "\nSPICommand: 0x");
+    }
+
     uint8_t command_byte = command & 0xFF;
 
     digitalWrite(DC_PIN, GPIO_LOW);
     digitalWrite(CS_PIN, GPIO_LOW);
     int rc = spi_comms(PI_CHANNEL, &command_byte, 1);
     digitalWrite(CS_PIN, GPIO_HIGH);
+
+
+
     return rc;
 }
 
@@ -133,6 +144,7 @@ send_data_byte(uint8_t data)
     digitalWrite(CS_PIN, GPIO_LOW);
     int rc = spi_comms(PI_CHANNEL, &data, 1);
     digitalWrite(CS_PIN, GPIO_HIGH);
+
     return rc;
 }
 
@@ -165,6 +177,7 @@ init_gpio(void)
     }
 
     log_info("GPIO initialised.");
+    
     return 0;
 }
 
@@ -175,7 +188,7 @@ init_epd(struct Epd *Display)
 {
     if (Display->poweron) {
 	errno = EALREADY;
-	log_warn("Attempt made to initialise active device.");
+	//log_warn("Attempt made to initialise active device.");
 	return 0;
     } else { 
 	Display->poweron = 1;
@@ -213,7 +226,7 @@ init_epd(struct Epd *Display)
 
     rc = send_command_byte(SET_DUMMY_LINE_PERIOD);
     if (rc) goto out;
-    rc = send_data_byte(0xA8);
+    rc = send_data_byte(0x1A);
     if (rc) goto out;
 
     rc = send_command_byte(SET_GATE_TIME);
@@ -397,6 +410,8 @@ bitmap_alloc(struct Epd *Display)
 	log_err("Memory error.");
 	return 1;
     }
+    log_debug("Allocated %zuB for bitmap buffer.",
+	      (sizeof *Display->bmp.buf) * Display->bmp.buflen);
 
     return 0;
 }
@@ -406,18 +421,22 @@ static void
 bitmap_write_to_ram(struct Epd *Display)
 {
 
+    size_t addr = 0;		/* 1D array index (calc from 2D) */
+
     for (size_t y = 0; y < Display->height; ++y) {
 
-	set_cursor(0, y);  /* moves up the device across the y axis */
+	/* Set cursor at start of each new row */
+	set_cursor(0, y);
 	send_command_byte(WRITE_RAM);
 
+	/* Send one row of byte data */
 	for (size_t x = 0; x < Display->bmp.width; ++x) {
-	    send_data_byte(Display->bmp.buf[x] & 0xFF);
+	    addr = (y * Display->bmp.width) + x; 
+	    send_data_byte(Display->bmp.buf[addr]);
 	}
     }
 
-    if (LOGLEVEL >= 3) {
-	log_info("Applying bitmap");
+    if (LOGLEVEL == 3) {
 	EPD_print_bmp(Display);
     }
   
@@ -430,8 +449,13 @@ bitmap_write_to_ram(struct Epd *Display)
 static void
 bitmap_clear(struct Epd *Display)
 {
-    for (size_t i = 0; i < Display->bmp.buflen; ++i) 
+    size_t i;
+
+    for (i = 0; i < Display->bmp.buflen; ++i) 
 	Display->bmp.buf[i] = (~Display->colour) & 0xFF;
+
+    log_debug("Buffer cleared (%zuB of %zuB).",
+	      i, Display->bmp.buflen);
 
     return;
 }
@@ -451,7 +475,9 @@ EPD_create(size_t width, size_t height)
     if (!Display) {
 	log_err("Memory error.");
 	goto out1;
-    }
+    } 
+    log_debug("Allocated %zuB for EPD object", sizeof *Display);
+
 
     Display->width = width;
     Display->height = height;
@@ -464,10 +490,10 @@ EPD_create(size_t width, size_t height)
     if (bitmap_alloc(Display))
 	goto out2;
 
-    EPD_sleep(Display);
+    //EPD_sleep(Display);
 
     /* Set some defaults */
-    EPD_set_fgcolour(Display, WHITE);
+    EPD_set_fgcolour(Display, BLACK);
     EPD_set_mirror(Display, MIRROR_FALSE);
     EPD_set_rotation(Display, NONE);
 
@@ -523,7 +549,6 @@ void
 EPD_sleep(struct Epd *Display)
 {
     if (0 == Display->poweron) {
-	
 	log_debug("Display is already asleep, doing nothing.");
 	return;
     }
@@ -634,10 +659,8 @@ EPD_draw_point(struct Epd *Display, size_t x, size_t y)
     size_t byte_addr = (Display->bmp.width * y) + (x / 8);
     uint8_t *point = Display->bmp.buf + byte_addr;
 
-    /* Set the bit of interest to foreground colour */
-    *point |= 0x80 >> (x % 8);
-    log_debug("Point drawn at pixel (%zu,%zu)", x, y);
-
+    *point ^= 0x80 >> (x % 8);
+    
     return;
 }
 
@@ -685,6 +708,7 @@ EPD_refresh(struct Epd *Display)
 	goto out;
     }
 	
+    set_display_window(Display, NULL);
     bitmap_write_to_ram(Display);
 
     if (load_display_from_ram()) {
@@ -692,8 +716,9 @@ EPD_refresh(struct Epd *Display)
 	goto out;
     }
 
+    delay(500);
     log_info("Display refreshed.");
-    EPD_sleep(Display);
+    //EPD_sleep(Display);
     
     return 0;
  out:
@@ -709,10 +734,7 @@ EPD_clear(struct Epd *Display)
 {
     /* For full screen usage, window display set from origin to furthest
        possible co-ordinate */
-    bitmap_clear(Display);
 
-    set_display_window(Display, NULL); // this probably needs to be
-				       // done after init_epd in
-				       // EPD_refresh
-      return EPD_refresh(Display);
+    bitmap_clear(Display);
+    return EPD_refresh(Display);
 }
