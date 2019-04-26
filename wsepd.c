@@ -188,7 +188,7 @@ init_epd(struct Epd *Display)
 {
     if (Display->poweron) {
 	errno = EALREADY;
-	//log_warn("Attempt made to initialise active device.");
+	log_warn("Attempt made to initialise active device.");
 	return 0;
     } else { 
 	Display->poweron = 1;
@@ -490,7 +490,7 @@ EPD_create(size_t width, size_t height)
     if (bitmap_alloc(Display))
 	goto out2;
 
-    //EPD_sleep(Display);
+    EPD_sleep(Display);
 
     /* Set some defaults */
     EPD_set_fgcolour(Display, BLACK);
@@ -718,7 +718,7 @@ EPD_refresh(struct Epd *Display)
 
     delay(500);
     log_info("Display refreshed.");
-    //EPD_sleep(Display);
+    EPD_sleep(Display);
     
     return 0;
  out:
