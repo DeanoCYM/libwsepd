@@ -571,6 +571,73 @@ EPD_sleep(struct Epd *Display)
     return;
 }
 
+/* Toggle the pixel colour at (x, y) in the bitmap */
+void
+EPD_toggle_px(struct Epd *Display, size_t x, size_t y)
+{
+    if (x >= Display->width || y >= Display->height) {
+	errno = EINVAL;
+	log_err("Invalid coordinates, must be within %zupxW x %zupxH.",
+		Display->width, Display->height);
+	return;
+    }
+
+    /* Convert 2D coordinates into flat array index and obtain byte of
+       interest (each byte contains the bitmap data for 8 pixels
+       across the width). */
+    size_t byte_addr = (Display->bmp.width * y) + (x / 8);
+    uint8_t *point = Display->bmp.buf + byte_addr;
+
+    *point ^= 0x80 >> (x % 8);
+    
+    return;
+}
+
+/* Apply transformations (according to flags), write the bitmap to ram
+   and refresh the display.  */
+int
+EPD_refresh(struct Epd *Display)
+{
+    if (init_epd(Display)) {
+	errno = EREMOTEIO;
+	goto out;
+    }
+	
+    set_display_window(Display, NULL);
+    bitmap_write_to_ram(Display);
+
+    if (load_display_from_ram()) {
+	errno = EBUSY;
+	goto out;
+    }
+
+    delay(500);
+    log_info("Display refreshed.");
+    EPD_sleep(Display);
+    
+    return 0;
+ out:
+    log_err("Failed to refresh display.");
+    return 1;
+}
+
+/* Wipe the bitmap and apply the background colour (inverse of
+   fgcolour) to the display. Returns non zero if there is a problem
+   refreshing the display.  */
+int
+EPD_clear(struct Epd *Display)
+{
+    /* For full screen usage, window display set from origin to furthest
+       possible co-ordinate */
+
+    bitmap_clear(Display);
+    return EPD_refresh(Display);
+}
+
+/**
+   Get and set methods
+**/
+
 /* Set and get rotation field in the epd structure */
 void
 EPD_set_rotation(struct Epd *Display, enum ROTATION value)
@@ -630,39 +697,9 @@ EPD_get_mirror(struct Epd *Display)
     return Display->mirror;
 }
 
-/* Returns a pointer to the image bitmap, or null if one is not
-   initialised. */
-/* uint8_t * */
-/* EPD_get_bmp(struct Epd *Display) */
-/* { */
-/*     if (!Display->bmp.buf) { */
-/* 	log_warn("Image bitmap does not appear to be initialised."); */
-/*     } */
-
-/*     return Display->bmp.buf; */
-/* } */
-
-/* Toggle the pixel colour at (x, y) in the bitmap */
-void
-EPD_toggle_px(struct Epd *Display, size_t x, size_t y)
-{
-    if (x >= Display->width || y >= Display->height) {
-	errno = EINVAL;
-	log_err("Invalid coordinates, must be within %zupxW x %zupxH.",
-		Display->width, Display->height);
-	return;
-    }
-
-    /* Convert 2D coordinates into flat array index and obtain byte of
-       interest (each byte contains the bitmap data for 8 pixels
-       across the width). */
-    size_t byte_addr = (Display->bmp.width * y) + (x / 8);
-    uint8_t *point = Display->bmp.buf + byte_addr;
-
-    *point ^= 0x80 >> (x % 8);
-    
-    return;
-}
+/**
+   Debugging methods
+ **/
 
 /* Hex dump of image bitmap buffer to stdout */
 void
@@ -698,43 +735,15 @@ EPD_print_bmp(struct Epd *Display)
     return;
 }
 
-/* Apply transformations (according to flags), write the bitmap to ram
-   and refresh the display.  */
-int
-EPD_refresh(struct Epd *Display)
+/* Returns a pointer to the image bitmap, or null if one is not
+   initialised. */
+uint8_t *
+EPD_get_bmp(struct Epd *Display)
 {
-    if (init_epd(Display)) {
-	errno = EREMOTEIO;
-	goto out;
-    }
-	
-    set_display_window(Display, NULL);
-    bitmap_write_to_ram(Display);
-
-    if (load_display_from_ram()) {
-	errno = EBUSY;
-	goto out;
+    if (!Display->bmp.buf) {
+	log_warn("Image bitmap does not appear to be initialised.");
     }
 
-    delay(500);
-    log_info("Display refreshed.");
-    EPD_sleep(Display);
-    
-    return 0;
- out:
-    log_err("Failed to refresh display.");
-    return 1;
+    return Display->bmp.buf;
 }
 
-/* Wipe the bitmap and apply the background colour (inverse of
-   fgcolour) to the display. Returns non zero if there is a problem
-   refreshing the display.  */
-int
-EPD_clear(struct Epd *Display)
-{
-    /* For full screen usage, window display set from origin to furthest
-       possible co-ordinate */
-
-    bitmap_clear(Display);
-    return EPD_refresh(Display);
-}

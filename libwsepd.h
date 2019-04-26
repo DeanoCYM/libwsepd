@@ -48,24 +48,18 @@ void EPD_sleep(EPD Display);
 /* Manipulate E-paper display object properties */
 void EPD_set_rotation(EPD Display, enum ROTATION value);
 enum ROTATION EPD_get_rotation(EPD Display);
-
 void EPD_set_fgcolour(EPD Display, enum DISPLAY_COLOUR value);
 enum DISPLAY_COLOUR EPD_get_colour(EPD Display);
-
 void EPD_set_mirror(EPD Display, enum MIRROR value);
 enum MIRROR EPD_get_mirror(EPD Display);
 
 /* Image display and manipulation */
 void EPD_toggle_px(EPD Display, size_t x, size_t y);
-void EPD_print_bmp(EPD Display);
 int EPD_refresh(EPD Display);
 int EPD_clear(EPD Display);
-/* Send e-paer display module into deep sleep mode */
-
-
-
 
 /* Debugging only */
-/* EPD_get_bmp(struct Epd *Display) */
+void EPD_print_bmp(EPD Display);
+EPD_get_bmp(struct Epd *Display);
 
 #endif /* LIBWSEPD_H */
