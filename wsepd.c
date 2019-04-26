@@ -632,19 +632,19 @@ EPD_get_mirror(struct Epd *Display)
 
 /* Returns a pointer to the image bitmap, or null if one is not
    initialised. */
-uint8_t *
-EPD_get_bmp(struct Epd *Display)
-{
-    if (!Display->bmp.buf) {
-	log_warn("Image bitmap does not appear to be initialised.");
-    }
+/* uint8_t * */
+/* EPD_get_bmp(struct Epd *Display) */
+/* { */
+/*     if (!Display->bmp.buf) { */
+/* 	log_warn("Image bitmap does not appear to be initialised."); */
+/*     } */
 
-    return Display->bmp.buf;
-}
+/*     return Display->bmp.buf; */
+/* } */
 
-/* Set the pixels at (x, y) in the bitmap to the foreground colour */
+/* Toggle the pixel colour at (x, y) in the bitmap */
 void
-EPD_draw_point(struct Epd *Display, size_t x, size_t y)
+EPD_toggle_px(struct Epd *Display, size_t x, size_t y)
 {
     if (x >= Display->width || y >= Display->height) {
 	errno = EINVAL;

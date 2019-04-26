@@ -56,11 +56,16 @@ void EPD_set_mirror(EPD Display, enum MIRROR value);
 enum MIRROR EPD_get_mirror(EPD Display);
 
 /* Image display and manipulation */
-uint8_t *EPD_get_bmp(EPD Display);
-void EPD_draw_point(EPD Display, size_t x, size_t y);
+void EPD_toggle_px(EPD Display, size_t x, size_t y);
 void EPD_print_bmp(EPD Display);
 int EPD_refresh(EPD Display);
 int EPD_clear(EPD Display);
 /* Send e-paer display module into deep sleep mode */
+
+
+
+
+/* Debugging only */
+/* EPD_get_bmp(struct Epd *Display) */
 
 #endif /* LIBWSEPD_H */
