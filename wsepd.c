@@ -66,6 +66,9 @@ static int initialise_epd(struct Epd *Display);
 /* Bitmap manipulation and application */
 static int bitmap_alloc(struct Epd *Display);
 static void bitmap_write_to_ram(struct Epd *Display);
+static void bitmap_set_px(uint8_t *byte, uint8_t n);
+static void bitmap_unset_px(uint8_t *byte, uint8_t n);
+static void bitmap_flip_px(uint8_t *byte, uint8_t n);
 static void bitmap_clear(struct Epd *Display);
 
 /* Initialise GPIO and SPI on raspberry pi */
