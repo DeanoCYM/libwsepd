@@ -20,7 +20,7 @@ all: $(TARGET)
 %.a: $(OBJ)
 	ar -rcs $@ $^
 
-test: LOGLEVEL=3
+#test: LOGLEVEL=3
 test: $(TEST_TGT)
 $(TEST_TGT): $(TEST_OBJ) $(TARGET)
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
