@@ -43,11 +43,16 @@ EPD EPD_create(size_t width, size_t height);
 void EPD_destroy(EPD Display);
 void EPD_sleep(EPD Display);
 
-/* Manipulate E-paper display object properties */
+/* Get/Set EPD properties */
 void EPD_set_fgcolour(EPD Display, enum FOREGROUND_COLOUR value);
 enum FOREGROUND_COLOUR EPD_get_colour(EPD Display);
+
 void EPD_set_write_mode(EPD Display, enum WRITE_MODE value);
 enum WRITE_MODE EPD_get_write_mode(EPD Display);
+
+int EPD_get_poweron(EPD Display);
+int EPD_get_width(EPD Display);
+int EPD_get_height(EPD Display);
 
 /* Image display and manipulation */
 void EPD_set_px(EPD Display, size_t x, size_t y);

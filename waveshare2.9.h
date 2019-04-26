@@ -30,6 +30,19 @@
  * THE SOFTWARE.
  */
 
+#include <stdint.h>
+#include "libwsepd.h"
+
+/* When true, all SPI communication is output to stdout. */
+#ifndef SPILOG
+#define SPILOG = 0
+#endif
+
+#define SPI_CLK_HZ 32000000	/* SPI clock speed (Hz) */
+#define PI_CHANNEL 0		/* RPi has two channels */
+#define RST_DELAY_MS 200	/* GPIO reset time delay (ms) */
+#define BUSY_DELAY_MS 100	/* GPIO busy wait time (ms) */
+
 /* Waveshare EPD module commands */
 enum EPD_COMMANDS
     { DRIVER_OUTPUT_CONTROL                  = 0x01,
@@ -54,6 +67,16 @@ enum EPD_COMMANDS
       SET_RAM_Y_ADDRESS_COUNTER              = 0x4F,
       TERMINATE_FRAME_READ_WRITE             = 0xFF };
 
+/* GPIO pins in BCM numbering format, named by connected interface on
+   e-paper module */
+enum BCM_EPD_PINS
+    { RST_PIN  = 17, DC_PIN   = 25,
+      CS_PIN   =  8, BUSY_PIN = 24 };
+
+/* GPIO output level (typically 0V low, 3.3V high)  */
+enum GPIO_OUTPUT_LEVEL { GPIO_LOW, GPIO_HIGH };
+
+
 /* Waveshare look up tables for module register */
 static const uint8_t lut_full_update[] =
     { 0x02, 0x02, 0x01, 0x11, 0x12, 0x12, 0x22, 0x22,
@@ -66,5 +89,18 @@ static const uint8_t lut_full_update[] =
 /*     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, */
 /*     0x00, 0x00, 0x00, 0x00, 0x13, 0x14, 0x44, 0x12, */
 /*     0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }; */
+
+/* Epd <-> RPi SPI communication */
+int spi_comms(int channel, uint8_t *buf, int len);
+int send_command_byte(enum EPD_COMMANDS command);
+int send_data_byte(uint8_t data);
+
+/* EPD commands */
+int init_epd(EPD Display);
+void set_display_window(EPD Display, size_t *sizes);
+void set_cursor(uint16_t x, uint16_t y);
+int wait_while_busy(void);
+int load_display_from_ram(void);
+void reset_epd(void);
 
 
