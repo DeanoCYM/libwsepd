@@ -1,7 +1,11 @@
 LOGLEVEL?=2
+SPILOG?=0
+
 CC=cc
-CFLAGS= -Wall -Wextra -Wfatal-errors -g3 -O0 -DLOGLEVEL=$(LOGLEVEL)
-LIBS=-lwiringPi
+CFLAGS= -Wall -Wextra -Wfatal-errors -g3 -O0 \
+	-DLOGLEVEL=$(LOGLEVEL) -DSPILOG=$(SPILOG)
+
+LIBS=-lwiringPi -lm
 PREFIX?=/usr/local
 
 TARGET=libwsepd.a
@@ -20,7 +24,7 @@ all: $(TARGET)
 %.a: $(OBJ)
 	ar -rcs $@ $^
 
-#test: LOGLEVEL=3
+test: LOGLEVEL=3
 test: $(TEST_TGT)
 $(TEST_TGT): $(TEST_OBJ) $(TARGET)
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)

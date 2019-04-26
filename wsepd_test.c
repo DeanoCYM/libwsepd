@@ -38,21 +38,34 @@ main(int argc, char *argv[])
 
     EPD Display = EPD_create(WIDTH, HEIGHT);
     if (Display == NULL) {
-	log_debug("Failed to create object");
-	return 1;
+    	log_debug("Failed to create object");
+    	return 1;
     }
 	
-    for (size_t x = WIDTH/2,  y = 0; y < HEIGHT; ++y)
-	EPD_draw_point(Display, x, y);
+    /* Highlight the origin pixel */
+    EPD_set_px(Display, 0, 0);
+    EPD_refresh(Display);
 
+    /* Draw lines through centre of display */
+    for (size_t x = WIDTH/2,  y = 0; y < HEIGHT; ++y)
+    	EPD_set_px(Display, x, y);
     for (size_t x = 0,  y = HEIGHT/2; x < WIDTH; ++x)
-	EPD_draw_point(Display, x, y);
+    	EPD_set_px(Display, x, y);
+    EPD_refresh(Display);
+
+    /* Draw a diagonal lines through centre */
+    size_t from1[2] = { 0, 0 };
+    size_t to1[2] = {WIDTH-1, HEIGHT-1};
+    EPD_draw_line(Display, from1, to1);
+
+    size_t from2[2] = { 0, HEIGHT-1 };
+    size_t to2[2] = { WIDTH-1, 0 };
+    EPD_draw_line(Display, from2, to2);
 
     EPD_refresh(Display);
-    sleep(2);
+
 
     EPD_destroy(Display);
-
-
     return 0;
 }
+

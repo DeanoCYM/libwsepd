@@ -33,10 +33,8 @@
 #include <stdint.h>
 
 /* Screen display setting constants */
-enum ROTATION { NONE = 0, CLOCKWISE = 90, FLIP = 180, ANTICLOCKWISE = 270 };
-enum DISPLAY_COLOUR { BLACK = 0x00, WHITE = 0xFF };
-enum MIRROR { MIRROR_FALSE, MIRROR_TRUE };
-enum CLEAR { CLEAR_FLASE, CLEAR_TRUE };
+enum FOREGROUND_COLOUR { BLACK = 0x00, WHITE = 0xFF };
+enum WRITE_MODE { TOGGLEMODE, FGMODE, BGMODE };
 
 typedef struct Epd * EPD;
 
@@ -46,20 +44,19 @@ void EPD_destroy(EPD Display);
 void EPD_sleep(EPD Display);
 
 /* Manipulate E-paper display object properties */
-void EPD_set_rotation(EPD Display, enum ROTATION value);
-enum ROTATION EPD_get_rotation(EPD Display);
-void EPD_set_fgcolour(EPD Display, enum DISPLAY_COLOUR value);
-enum DISPLAY_COLOUR EPD_get_colour(EPD Display);
-void EPD_set_mirror(EPD Display, enum MIRROR value);
-enum MIRROR EPD_get_mirror(EPD Display);
+void EPD_set_fgcolour(EPD Display, enum FOREGROUND_COLOUR value);
+enum FOREGROUND_COLOUR EPD_get_colour(EPD Display);
+void EPD_set_write_mode(EPD Display, enum WRITE_MODE value);
+enum WRITE_MODE EPD_get_write_mode(EPD Display);
 
 /* Image display and manipulation */
-void EPD_toggle_px(EPD Display, size_t x, size_t y);
+void EPD_set_px(EPD Display, size_t x, size_t y);
+int EPD_draw_line(EPD Display, size_t *from, size_t *to);
 int EPD_refresh(EPD Display);
 int EPD_clear(EPD Display);
 
 /* Debugging only */
 void EPD_print_bmp(EPD Display);
-EPD_get_bmp(struct Epd *Display);
+uint8_t *EPD_get_bmp(EPD Display);
 
 #endif /* LIBWSEPD_H */

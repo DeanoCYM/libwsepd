@@ -31,10 +31,16 @@
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
 #include <ert_log.h>
+#include <math.h>
 
 #include "libwsepd.h"
 #include "wsepd_signal.h"
 #include "waveshare2.9.h"
+
+/* When true, all SPI communication is output to stdout. */
+#ifndef SPILOG
+#define SPILOG = 0
+#endif
 
 #define SPI_CLK_HZ 32000000	/* SPI clock speed (Hz) */
 #define PI_CHANNEL 0		/* RPi has two channels */
@@ -64,10 +70,8 @@ struct Epd {
     size_t height;
     int poweron;
     struct bitmap bmp;
-    enum MIRROR mirror;
-    enum ROTATION rotation;
-    enum DISPLAY_COLOUR colour;
-    enum CLEAR clear;
+    enum FOREGROUND_COLOUR colour;
+    enum WRITE_MODE write_mode;
 };
 
 /**
@@ -102,8 +106,8 @@ static void bitmap_clear(struct Epd *Display);
 static int
 spi_comms(int channel, uint8_t *out_buf, int len)
 {
-    if (LOGLEVEL == 4) {
-	fprintf(stderr, "%02x",out_buf[0]);
+    if (SPILOG) {
+	fprintf(stdout, "%02x",out_buf[0]);
     }
 
     int spi_in = wiringPiSPIDataRW(channel, out_buf, len);
@@ -119,8 +123,8 @@ spi_comms(int channel, uint8_t *out_buf, int len)
 static int
 send_command_byte(enum EPD_COMMANDS command)
 {
-    if (LOGLEVEL == 4) {
-	fprintf(stderr, "\nSPICommand: 0x");
+    if (SPILOG) {
+	fprintf(stdout, "\n[SPI] 0x");
     }
 
     uint8_t command_byte = command & 0xFF;
@@ -443,6 +447,30 @@ bitmap_write_to_ram(struct Epd *Display)
     return;
 }
 
+/* Set specified bit number to 0 */
+static void
+bitmap_set_px(uint8_t *byte, uint8_t n)
+{
+    *byte &= 0x80 >> n;
+    return;
+}
+
+/* Set sepecified bit number n to 0 */
+static void
+bitmap_unset_px(uint8_t *byte, uint8_t n)
+{
+    *byte &= ~(0x80 >> n);
+    return;
+}
+
+/* Flip specified bit number */
+static void
+bitmap_flip_px(uint8_t *byte, uint8_t n)
+{
+    *byte ^= 0x80 >> n;
+    return;
+}
+
 /* Set each bit in the bitmap to the background colour (background
    colour is the inverse of the draw colour stored in E-paper display
    object */
@@ -494,8 +522,7 @@ EPD_create(size_t width, size_t height)
 
     /* Set some defaults */
     EPD_set_fgcolour(Display, BLACK);
-    EPD_set_mirror(Display, MIRROR_FALSE);
-    EPD_set_rotation(Display, NONE);
+    EPD_set_write_mode(Display, FGMODE);
 
     if (EPD_clear(Display))
 	goto out3;
@@ -573,7 +600,7 @@ EPD_sleep(struct Epd *Display)
 
 /* Toggle the pixel colour at (x, y) in the bitmap */
 void
-EPD_toggle_px(struct Epd *Display, size_t x, size_t y)
+EPD_set_px(struct Epd *Display, size_t x, size_t y)
 {
     if (x >= Display->width || y >= Display->height) {
 	errno = EINVAL;
@@ -588,9 +615,81 @@ EPD_toggle_px(struct Epd *Display, size_t x, size_t y)
     size_t byte_addr = (Display->bmp.width * y) + (x / 8);
     uint8_t *point = Display->bmp.buf + byte_addr;
 
-    *point ^= 0x80 >> (x % 8);
+    switch (Display->write_mode) {
+
+    case TOGGLEMODE:
+	bitmap_flip_px(point, (x % 8) & 0xFF);
+	break;
+
+    case FGMODE:
+	if (Display->colour == WHITE)
+	    bitmap_set_px(point, (x % 8) & 0xFF);
+	else
+	    bitmap_unset_px(point, (x % 8) & 0xFF);
+	break;
+
+    case BGMODE:
+	if (Display->colour == BLACK)
+	    bitmap_set_px(point, (x % 8) & 0xFF);
+	else
+	    bitmap_unset_px(point, (x % 8) & 0xFF);
+	break;
+
+    default:			/* should not reach */
+	errno = EINVAL;
+	log_err("Invalid WRITE_MODE enum value in object!");
+    }
     
     return;
+}
+
+/* Toggles all pixels in a straight line from (x,y) to (x,y) */
+int
+EPD_draw_line(struct Epd *Display, size_t *from, size_t *to)
+{
+    log_debug("Drawing line from (%zu,%zu) to (%zu,%zu).",
+	      from[0], from[1], to[0], to[1]);
+
+    if (from[0] >= Display->width     ||
+	to[0]   >= Display->width     ||
+	from[1] >= Display->height    ||
+	to[1]   >= Display->height ) {
+
+	errno = EINVAL;
+	log_err("Coordinates too large for %zux%zu display.\n\t"
+		"Note: origin is at (0,0) so maximum Npx -1.",
+		  Display->width, Display->height);
+	return 1;
+    }
+
+    float dx = (float)to[0] - from[0];
+    float dy = (float)to[1] - from[1];
+    log_debug("dx == %0.2f, dy == %0.2f", dx, dy);
+
+    float m = dy / dx;
+    float c = to[1] - (m * to[0]);
+    log_debug("m == %0.2f, c == %0.2f", m, c);
+    
+    /* For maximum resolution, line should be calculated with respect
+       to the greatest dimension */
+    size_t x, y;
+    if (Display->width > Display->height) {
+	for (x =  fminf(from[0], to[0]);
+	     x <= fmaxf(from[0], to[0]);
+	     ++x) {
+	    y = (size_t)roundf((m * x) + c);
+	    EPD_set_px(Display, x, y);
+	}
+    } else {
+	for (y =  fminf(from[1], to[1]);
+	     y <= fmaxf(from[1], to[1]);
+	     ++y) {
+	    x = (size_t)roundf((y - c) / m );
+	    EPD_set_px(Display, x, y);
+	}
+    }
+
+    return 0;
 }
 
 /* Apply transformations (according to flags), write the bitmap to ram
@@ -638,63 +737,56 @@ EPD_clear(struct Epd *Display)
    Get and set methods
 **/
 
-/* Set and get rotation field in the epd structure */
-void
-EPD_set_rotation(struct Epd *Display, enum ROTATION value)
-{
-    Display->rotation = value;
-    log_info("Screen rotation set to %d degrees", Display->rotation);
-
-    return;
-}
-
-enum ROTATION
-EPD_get_rotation(struct Epd *Display)
-{
-    return Display->rotation;
-}
-
-
 /* Set and get the display foreground colour in the epd structure */
 void
-EPD_set_fgcolour(struct Epd *Display, enum DISPLAY_COLOUR value)
+EPD_set_fgcolour(struct Epd *Display, enum FOREGROUND_COLOUR value)
 {
     Display->colour = value;
 
-    if(Display->colour == WHITE) {
-	log_info("Foreground colour set to white");
-    } else {
-	log_info("Foreground colour set to black");
+    switch (Display->colour) {
+    case BLACK: log_info("Foreground colour set to black");
+	break;
+    case WHITE: log_info("Foreground colour set to white");
+	break;
+    default:
+	errno = EINVAL;
+	log_err("Invalid display colour provided");
     }
   
     return;
 }
 
-enum DISPLAY_COLOUR
+enum FOREGROUND_COLOUR
 EPD_get_colour(struct Epd *Display)
 {
     return Display->colour;
 }
 
-/* Set and get the screen mirroring field in the epd structure */
+/* Set and get the mode of writing to the bitmap */
 void
-EPD_set_mirror(struct Epd *Display, enum MIRROR value)
+EPD_set_write_mode(struct Epd *Display, enum WRITE_MODE value)
 {
-    Display->mirror = value;
-
-    if (Display->mirror == MIRROR_TRUE) {
-	log_info("Display mirroring active");
-    } else {
-	log_info("Display mirroring disabled");
+    Display->write_mode = value;
+    
+    switch (Display->write_mode) {
+    case TOGGLEMODE: log_info("Write set to toggle.");
+	break;
+    case FGMODE: log_info("Write set to foreground colour.");
+	break;
+    case BGMODE: log_info("Write set to background colour.");
+	break;
+    default:
+	errno = EINVAL;
+	log_err("Invalid write mode provided.");
     }
-
+    
     return;
 }
 
-enum MIRROR
-EPD_get_mirror(struct Epd *Display)
+enum WRITE_MODE
+EPD_get_write_mode(struct Epd *Display)
 {
-    return Display->mirror;
+    return Display->write_mode;
 }
 
 /**
