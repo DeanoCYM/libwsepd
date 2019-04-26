@@ -157,11 +157,9 @@ bitmap_alloc(struct Epd *Display)
 static void
 bitmap_write_to_ram(struct Epd *Display)
 {
-
     size_t addr = 0;		/* 1D array index (calc from 2D) */
 
     for (size_t y = 0; y < Display->height; ++y) {
-
 	/* Set cursor at start of each new row */
 	set_cursor(0, y);
 	send_command_byte(WRITE_RAM);
