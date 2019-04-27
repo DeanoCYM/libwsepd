@@ -18,11 +18,9 @@
  * along with libwsepd.  If not, see <https://www.gnu.org/licenses/>.
  *
  * Description:
- * Library for Waveshare 2.9" e-ink screen using the wiringPi
- * backend. Lookup Tables and Derived from the Waveshare example code,
- * which can be found on github below:
- * 
- * https://github.com/waveshare/e-Paper
+ *
+ * Library for Waveshare 2.9" e-ink screen using the
+ * wiringPi backend.
  *
  * Plans to include more waveshare displays in the future.
  */
@@ -45,11 +43,10 @@ void EPD_sleep(EPD Display);
 
 /* Get/Set EPD properties */
 void EPD_set_fgcolour(EPD Display, enum FOREGROUND_COLOUR value);
-enum FOREGROUND_COLOUR EPD_get_colour(EPD Display);
-
 void EPD_set_write_mode(EPD Display, enum WRITE_MODE value);
-enum WRITE_MODE EPD_get_write_mode(EPD Display);
 
+enum WRITE_MODE EPD_get_write_mode(EPD Display);
+enum FOREGROUND_COLOUR EPD_get_colour(EPD Display);
 int EPD_get_poweron(EPD Display);
 int EPD_get_width(EPD Display);
 int EPD_get_height(EPD Display);
