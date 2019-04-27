@@ -9,7 +9,7 @@ LIBS=-lwiringPi -lm
 PREFIX?=/usr/local
 
 TARGET=libwsepd.a
-OBJ=wsepd.o wsepd_signal.o waveshare2.9.o
+OBJ=wsepd.o wsepd_signal.o waveshare2.9.o wsepd_path.o
 
 TEST_TGT=wsepd_test
 TEST_OBJ=wsepd_test.o
