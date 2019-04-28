@@ -30,7 +30,9 @@ $(TEST_TGT): $(TEST_OBJ) $(TARGET)
 	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
 clean:
-	rm -f $(TARGET) $(OBJ) $(TEST_TGT) $(TEST_OBJ)
+	rm -f $(TARGET)
+	rm -f $(OBJ)
+	rm -f $(TEST_TGT) $(TEST_OBJ)
 
 install: LOGLEVEL=1
 

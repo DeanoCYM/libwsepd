@@ -23,13 +23,32 @@
  *
  */
 
-typedef struct Path * Path;
+#ifndef WSEPD_PATH_H
+#define WSEPD_PATH_H
+
+struct Coordinate {
+    size_t x;
+    size_t y;
+};
+
+typedef struct Path * PATH;
 
 /* Dynamically allocates memory for a new Path object */
-Path Path_create(size_t width, size_t height);
+PATH PATH_create(size_t width, size_t height);
 
 /* Appends coordinates to end of a Path */
-int  Path_append_coordinate(Path List, size_t x, size_t y);
+int  PATH_append_coordinate(PATH List, size_t x, size_t y);
+
+/* Clear all coordinates in the Path list */
+void PATH_clear_coordinates(PATH List);
+
+/* Remove a specific co-ordinate (1 based numbering) */
+void PATH_remove_coordinate(PATH List, size_t N);
+size_t PATH_get_length(PATH List);
+size_t PATH_get_position(PATH List);
+struct Coordinate *PATH_get_next_coordinate(PATH List);
 
 /* Frees all memory in the Path object */
-void Path_destroy(Path List);
+void PATH_destroy(PATH List);
+
+#endif /* WSEPD_PATH_H */

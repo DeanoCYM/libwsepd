@@ -26,106 +26,210 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ert_log.h>
+#include <assert.h>
 
 #include "wsepd_path.h"
 
-#define FOREACH_COORDINATE_IN_PATH(_PATH)	\
-    for (size_t _N = 0; _N < _PATH->length; ++_N)
-
-struct Coordinate {
-    size_t x;
-    size_t y;
-    struct Coordinate *Next;
-    struct Coordinate *Prev;
+struct Node {
+    struct Coordinate *px;
+    struct Node *Next;
+    struct Node *Prev;
 };
 
 struct Path {
     size_t xmax;		
     size_t ymax;		
     size_t length;
-    struct Coordinate *Head;
-    struct Coordinate *Tail;
+    size_t journey_position;
+    struct Node *Head;
+    struct Node *Tail;
+    struct Node *JourneyHead;
 };
 
+/**
+   Static Functions
+**/
+
+static void Node_destroy(struct Node *Node);
+
+static void
+Node_destroy(struct Node *Node)
+{
+    assert(Node && Node->px);
+    free(Node->px); Node->px = NULL;
+    free(Node); Node = NULL;
+    return;
+}
+    
+
+/**
+   Interface Functions
+**/
+
+/* Dynamically allocates memory for an empty Path structure */
 struct Path *
-Path_create(size_t width, size_t height)
+PATH_create(size_t width, size_t height)
 {
     struct Path * List = malloc(sizeof *List);
     if (NULL == List) {
 	log_err("Memory error");
 	return NULL;
-    } else {
-	log_debug("Allocated new Path List.");
     }
 
     List->xmax = width - 1;
     List->ymax = height - 1;
     List->length = 0;
+    List->journey_position = 0;
     List->Tail = NULL;
     List->Head = NULL;
+    List->JourneyHead = NULL;
 
     return List;
 }
 
-/* Adds Cooridinate to the end of the Path list. */
+/* Adds a Cooridinate structure to the end of the Path list. */
 int
-Path_append_coordinate(struct Path *List, size_t x, size_t y)
+PATH_append_coordinate(struct Path *List, size_t x, size_t y)
 {
     if (x > List->xmax || y > List->ymax) {
-	log_err("Coordinates exceed maximum dimensions.");
+	log_err("Nodes exceed maximum dimensions.");
 	return 1;
     }
 
-    struct Coordinate *New = malloc(sizeof *New);
+    struct Node *New = malloc(sizeof *New);
     if (NULL == New) {
 	log_err("Memory Error");
 	return 1;
-    } else {
-	log_debug("Allocated new coordiante (%zu,%zu).",
-		  New->x, New->y);
     }
 
-    New->x = x;
-    New->y = y;
+    New->px = malloc(sizeof *New->px);
+    if (NULL == New->px) {
+	log_err("Memory Error");
+	return 1;
+    }    
+
+    New->px->x = x;
+    New->px->y = y;
     New->Next = NULL;
 
     if (0 == List->length) {
-	log_debug("Path List is empty, appending first Coordinate.");
 	New->Prev = NULL;
 	List->Head = New;
 	List->Tail = New;
+	List->JourneyHead = New;
     } else {
-	log_debug("Appending Cooridinate to end of Path list.");
 	List->Tail->Next = New;
 	New->Prev = List->Tail;
 	List->Tail = New;
     }
 	
     ++List->length;
+    log_debug("Appended coordinate (%zu,%zu).",
+	      List->Tail->px->x, List->Tail->px->y);
 
     return 0;
 }
 
-/* Frees each Coordinate in the List and then frees the Path itself */
+/* Frees each Node in the List and then frees the Path structure
+   itself */
 void
-Path_destroy(struct Path *List)
+PATH_destroy(struct Path *List)
 {
-    FOREACH_COORDINATE_IN_PATH(List) {
-	List->Head = List->Head->Next;
+    assert(List && List->Head && List->Tail);
 
-	if (List->Head->Prev) {
-	    free(List->Head->Prev);
-	    List->Head->Prev = NULL;
-	}
+    log_debug("Destroying path list with %zu coordinate node(s).",
+	      List->length);
 
-	--List->length;
-    }
-    
-    if (List->length != 0)
-	log_warn("Memory leak!");
+    PATH_clear_coordinates(List);
 
+    List->Head = NULL;
+    List->Tail = NULL;
     free(List);
     List = NULL;
+	
+    return;
+}
+
+/* Returns the number of nodes in the list */
+size_t
+PATH_get_length(struct Path *List)
+{
+    return List->length;
+}
+
+/* Returns the current position when traversing the list */
+size_t
+PATH_get_position(struct Path *List)
+{
+    return List->journey_position;
+}
+
+/* Traverses the linked list one node and returns the associated
+   coordinate. The jouney position field is incremented to keep track
+   of the current location */
+struct Coordinate *
+PATH_get_next_coordinate(struct Path *List)
+{
+    if (List->journey_position > List->length) {
+	errno = EINVAL;
+	log_err("End of path.");
+	return NULL;
+    }
+
+    struct Coordinate *px = List->JourneyHead->px;
+    List->JourneyHead = List->JourneyHead->Next;
+    ++List->journey_position;
+
+    return px;
+}
+
+/* Deletes the Nth node, repairing the linked list appropriately. */
+void
+PATH_remove_coordinate(struct Path *List, size_t N)
+{
+    assert(List && List->Head);
+
+    if (N >= List->length) {
+	errno = EINVAL;
+	log_err("Cant remove node at position %zu of %zu nodes.\n\t",
+		N, List->length);
+    }
+    
+    size_t n;
+    struct Node *Target = List->Head;
+    for (n = 1; n < N; ++n) {
+	Target = Target->Next;
+    }
+
+    Target->Prev->Next = Target->Next;
+    Target->Next->Prev = Target->Prev;
+    Node_destroy(Target);
+
+    return;
+}
+
+/* Removes all Coordinate nodes, and frees associated memory, within
+   the linked list structure.  */
+void
+PATH_clear_coordinates(struct Path *List)
+{
+    struct Node *Temp;
+    while(List->length > 0) {
+	Temp = List->Head->Next;
+	Node_destroy(List->Head);
+	List->Head = Temp;
+	--List->length;
+    }
+
+    List->Head = NULL;
+    List->Tail = NULL;
+    List->JourneyHead = NULL;
+    List->journey_position = 0;
+
+    if (List->length > 0) {
+	log_warn("Memory leak! %zu coordinate nodes not freed.",
+		 List->length);
+    }
 
     return;
 }

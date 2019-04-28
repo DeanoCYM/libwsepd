@@ -25,8 +25,11 @@
 
 #include <stdio.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <ert_log.h>
+
 #include "libwsepd.h"
+#include "wsepd_path.h"
 
 #define WIDTH  128
 #define HEIGHT 296
@@ -42,29 +45,33 @@ main(int argc, char *argv[])
     	return 1;
     }
 	
-    /* Highlight the origin pixel */
+    /* Highlight the original and terminal pixel */
     EPD_set_px(Display, 0, 0);
-    EPD_refresh(Display);
+    EPD_set_px(Display, WIDTH-1, HEIGHT-1);
 
     /* Draw lines through centre of display */
-    for (size_t x = WIDTH/2,  y = 0; y < HEIGHT; ++y)
-    	EPD_set_px(Display, x, y);
-    for (size_t x = 0,  y = HEIGHT/2; x < WIDTH; ++x)
-    	EPD_set_px(Display, x, y);
+    PATH Route = PATH_create(WIDTH, HEIGHT);
+    PATH_append_coordinate(Route, WIDTH/2, 0);
+    PATH_append_coordinate(Route, WIDTH/2, HEIGHT-1);
+    EPD_draw_path(Display, Route);
+    PATH_clear_coordinates(Route);
+
+    PATH_append_coordinate(Route, 0, HEIGHT/2);
+    PATH_append_coordinate(Route, WIDTH-1, HEIGHT/2);
+    EPD_draw_path(Display, Route);
+    PATH_clear_coordinates(Route);
+    /* Draw line around outside */
+
+    PATH_append_coordinate(Route, 0, 0);
+    PATH_append_coordinate(Route, 0, HEIGHT-1);
+    PATH_append_coordinate(Route, WIDTH-1, HEIGHT-1);
+    PATH_append_coordinate(Route, WIDTH-1, 0);
+    PATH_append_coordinate(Route, 0, 0);
+    PATH_append_coordinate(Route, 0, 0);
+    EPD_draw_path(Display, Route);
+    PATH_destroy(Route);
+    
     EPD_refresh(Display);
-
-    /* Draw a diagonal lines through centre */
-    size_t from1[2] = { 0, 0 };
-    size_t to1[2] = {WIDTH-1, HEIGHT-1};
-    EPD_draw_line(Display, from1, to1);
-
-    size_t from2[2] = { 0, HEIGHT-1 };
-    size_t to2[2] = { WIDTH-1, 0 };
-    EPD_draw_line(Display, from2, to2);
-
-    EPD_refresh(Display);
-
-
     EPD_destroy(Display);
     return 0;
 }

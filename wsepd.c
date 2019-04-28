@@ -36,6 +36,9 @@
 #include "libwsepd.h"
 #include "wsepd_signal.h"
 #include "waveshare2.9.h"
+#include "wsepd_path.h"
+
+#define NEVERPRINT 1
 
 /* A bitmap representing the e-paper dispay screen */
 struct bitmap {
@@ -70,6 +73,8 @@ static void bitmap_set_px(uint8_t *byte, uint8_t n);
 static void bitmap_unset_px(uint8_t *byte, uint8_t n);
 static void bitmap_flip_px(uint8_t *byte, uint8_t n);
 static void bitmap_clear(struct Epd *Display);
+static int bitmap_draw_line(struct Epd *Display,
+			    size_t x1, size_t y1, size_t x2, size_t y2);
 
 /* Initialise GPIO and SPI on raspberry pi */
 static int
@@ -217,6 +222,60 @@ bitmap_clear(struct Epd *Display)
 	      i, Display->bmp.buflen);
 
     return;
+}
+
+/* Toggles all pixels in a straight line from (x,y) to (x,y). Returns
+   0 on success or 1 and sets errno to ECANCELLED if the coordiantes
+   are identical. */
+static int
+bitmap_draw_line(struct Epd *Display,
+		 size_t x1, size_t y1, size_t x2, size_t y2)
+{
+    log_debug("Drawing line from (%zu,%zu) to (%zu,%zu).",
+	      x1, y1, x2, y2);
+
+    // bug? is float always big enough?
+
+    float dx = (float)x2 - x1;
+    float dy = (float)y2 - y1;
+    log_debug("dx == %0.2f, dy == %0.2f", dx, dy);
+
+    if (dx == 0 && dy == 0) {
+	errno = ECANCELED;
+	log_warn("Cannot draw line, coordinates are identical.");
+	return 1;
+    }
+
+    /* For maximum resolution, line should be calculated with respect
+       to the greatest dimension (height) */
+
+    size_t x, y;
+    float m = (dx == 0) ? 0 : dy / dx; /* protects against inf */
+    float c = y2 - (m * x2);
+
+    if (dx == 0) { 		/* vertical line */
+	for (y =  fminf(y1, y2); y <= fmaxf(y1, y2); ++y) {
+	    x = x1;
+	    EPD_set_px(Display, x, y);
+	}
+    } else if (dy == 0) {	/* horizontal line */
+	for (x =  fminf(x1, x2); x <= fmaxf(x1, x2); ++x) {
+	    y = y1;
+	    EPD_set_px(Display, x, y);
+	}
+    } else if (Display->width >= Display->height) {
+	for (x =  fminf(x1, x2); x <= fmaxf(x1, x2); ++x) {
+	    y = (size_t)roundf((m * x) + c);
+	    EPD_set_px(Display, x, y);
+	}
+    } else {
+	for (y =  fminf(y1, y2); y <= fmaxf(y1, y2); ++y) {
+	    x = (size_t)roundf((y - c) / m );
+	    EPD_set_px(Display, x, y);
+	}
+    }
+	    
+    return 0;
 }
 
 /**
@@ -374,50 +433,21 @@ EPD_set_px(struct Epd *Display, size_t x, size_t y)
     return;
 }
 
-/* Toggles all pixels in a straight line from (x,y) to (x,y) */
-int
-EPD_draw_line(struct Epd *Display, size_t *from, size_t *to)
+/* Draw a line on the bitmap buffer between each coordinate in Path */
+int EPD_draw_path(EPD Display, PATH Route)
 {
-    log_debug("Drawing line from (%zu,%zu) to (%zu,%zu).",
-	      from[0], from[1], to[0], to[1]);
+    struct Coordinate *from, *to;
 
-    if (from[0] >= Display->width     ||
-	to[0]   >= Display->width     ||
-	from[1] >= Display->height    ||
-	to[1]   >= Display->height )     {
-
-	errno = EINVAL;
-	log_err("Coordinates too large for %zux%zu display.\n\t"
-		"Note: origin is at (0,0) so maximum Npx -1.",
-		  Display->width, Display->height);
+    if (PATH_get_length(Route) < 2) {
+	log_err("Failed to draw path. Need at least two coordinates.");
 	return 1;
     }
 
-    float dx = (float)to[0] - from[0];
-    float dy = (float)to[1] - from[1];
-    log_debug("dx == %0.2f, dy == %0.2f", dx, dy);
-
-    float m = dy / dx;
-    float c = to[1] - (m * to[0]);
-    log_debug("m == %0.2f, c == %0.2f", m, c);
-    
-    /* For maximum resolution, line should be calculated with respect
-       to the greatest dimension */
-    size_t x, y;
-    if (Display->width > Display->height) {
-	for (x =  fminf(from[0], to[0]);
-	     x <= fmaxf(from[0], to[0]);
-	     ++x) {
-	    y = (size_t)roundf((m * x) + c);
-	    EPD_set_px(Display, x, y);
-	}
-    } else {
-	for (y =  fminf(from[1], to[1]);
-	     y <= fmaxf(from[1], to[1]);
-	     ++y) {
-	    x = (size_t)roundf((y - c) / m );
-	    EPD_set_px(Display, x, y);
-	}
+    from = PATH_get_next_coordinate(Route);
+    while (PATH_get_position(Route) < PATH_get_length(Route)) {
+	to = PATH_get_next_coordinate(Route);
+	bitmap_draw_line(Display, from->x, from->y, to->x, to->y);
+	from = to;
     }
 
     return 0;
@@ -546,6 +576,9 @@ EPD_get_height(struct Epd *Display)
 void
 EPD_print_bmp(struct Epd *Display)
 {
+    if (NEVERPRINT)
+	return;
+
     log_debug("Printing bitmap (%zu px W x %zu px H):",
 	     Display->width, Display->height);
     

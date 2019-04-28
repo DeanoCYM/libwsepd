@@ -29,6 +29,7 @@
 #define LIBWSEPD_H
 
 #include <stdint.h>
+#include "wsepd_path.h"
 
 /* Screen display setting constants */
 enum FOREGROUND_COLOUR { BLACK = 0x00, WHITE = 0xFF };
@@ -53,7 +54,7 @@ int EPD_get_height(EPD Display);
 
 /* Image display and manipulation */
 void EPD_set_px(EPD Display, size_t x, size_t y);
-int EPD_draw_line(EPD Display, size_t *from, size_t *to);
+int EPD_draw_path(EPD Display, PATH Route);
 int EPD_refresh(EPD Display);
 int EPD_clear(EPD Display);
 
