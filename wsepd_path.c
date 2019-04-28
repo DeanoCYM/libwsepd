@@ -56,6 +56,7 @@ static void
 Node_destroy(struct Node *Node)
 {
     assert(Node && Node->px);
+
     free(Node->px); Node->px = NULL;
     free(Node); Node = NULL;
     return;
@@ -92,12 +93,13 @@ PATH_create(size_t width, size_t height)
 void
 PATH_destroy(struct Path *List)
 {
-    assert(List && List->Head && List->Tail);
+    assert(List);
 
     log_debug("Destroying path list with %zu coordinate node(s).",
 	      List->length);
 
-    PATH_clear_coordinates(List);
+    if (List->length > 0)
+	PATH_clear_coordinates(List);
 
     List->Head = NULL;
     List->Tail = NULL;
@@ -111,6 +113,8 @@ PATH_destroy(struct Path *List)
 int
 PATH_append_coordinate(struct Path *List, size_t x, size_t y)
 {
+    assert(List);
+
     if (x > List->xmax || y > List->ymax) {
 	log_err("Nodes exceed maximum dimensions.");
 	return 1;
@@ -180,6 +184,14 @@ PATH_remove_coordinate(struct Path *List, size_t N)
 void
 PATH_clear_coordinates(struct Path *List)
 {
+    assert(List);
+
+    if (NULL == List->Head) {
+	errno = ECANCELED;
+	log_warn("Path list already empty");
+	return;
+    }
+
     struct Node *Temp;
     while(List->length > 0) {
 	Temp = List->Head->Next;
@@ -205,6 +217,7 @@ PATH_clear_coordinates(struct Path *List)
 size_t
 PATH_get_length(struct Path *List)
 {
+    assert(List);
     return List->length;
 }
 
@@ -212,6 +225,7 @@ PATH_get_length(struct Path *List)
 size_t
 PATH_get_position(struct Path *List)
 {
+    assert(List);
     return List->journey_position;
 }
 
@@ -221,6 +235,8 @@ PATH_get_position(struct Path *List)
 struct Coordinate *
 PATH_get_next_coordinate(struct Path *List)
 {
+    assert(List);
+
     if (List->journey_position > List->length) {
 	errno = EINVAL;
 	log_err("End of path.");

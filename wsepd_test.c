@@ -55,23 +55,31 @@ main(int argc, char *argv[])
     PATH_append_coordinate(Route, WIDTH/2, HEIGHT-1);
     EPD_draw_path(Display, Route);
     PATH_clear_coordinates(Route);
-
     PATH_append_coordinate(Route, 0, HEIGHT/2);
     PATH_append_coordinate(Route, WIDTH-1, HEIGHT/2);
     EPD_draw_path(Display, Route);
     PATH_clear_coordinates(Route);
-    /* Draw line around outside */
 
+    /* Draw line around outside */
     PATH_append_coordinate(Route, 0, 0);
     PATH_append_coordinate(Route, 0, HEIGHT-1);
     PATH_append_coordinate(Route, WIDTH-1, HEIGHT-1);
     PATH_append_coordinate(Route, WIDTH-1, 0);
     PATH_append_coordinate(Route, 0, 0);
-    PATH_append_coordinate(Route, 0, 0);
     EPD_draw_path(Display, Route);
-    PATH_destroy(Route);
+    PATH_clear_coordinates(Route);
     
+    /* Draw and 8x8 box */
+    PATH_append_coordinate(Route, 10, 10);
+    PATH_append_coordinate(Route, 18, 10);
+    PATH_append_coordinate(Route, 18, 18);
+    PATH_append_coordinate(Route, 10, 18);
+    PATH_append_coordinate(Route, 10, 10);
+    EPD_draw_path(Display, Route);
+    PATH_clear_coordinates(Route);
+
     EPD_refresh(Display);
+    PATH_destroy(Route);
     EPD_destroy(Display);
     return 0;
 }
