@@ -162,8 +162,10 @@ PATH_remove_coordinate(struct Path *List, size_t N)
 
     if (N >= List->length) {
 	errno = EINVAL;
-	log_err("Cant remove node at position %zu of %zu nodes.\n\t",
+	log_err("Cant remove node at position %zu of %zu nodes.\n\t"
+		"Note: zero-based numbering",
 		N, List->length);
+	return;
     }
     
     size_t n;
