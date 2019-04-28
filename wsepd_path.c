@@ -87,6 +87,26 @@ PATH_create(size_t width, size_t height)
     return List;
 }
 
+/* Frees each Node in the List and then frees the Path structure
+   itself */
+void
+PATH_destroy(struct Path *List)
+{
+    assert(List && List->Head && List->Tail);
+
+    log_debug("Destroying path list with %zu coordinate node(s).",
+	      List->length);
+
+    PATH_clear_coordinates(List);
+
+    List->Head = NULL;
+    List->Tail = NULL;
+    free(List);
+    List = NULL;
+	
+    return;
+}
+
 /* Adds a Cooridinate structure to the end of the Path list. */
 int
 PATH_append_coordinate(struct Path *List, size_t x, size_t y)
@@ -128,59 +148,6 @@ PATH_append_coordinate(struct Path *List, size_t x, size_t y)
 	      List->Tail->px->x, List->Tail->px->y);
 
     return 0;
-}
-
-/* Frees each Node in the List and then frees the Path structure
-   itself */
-void
-PATH_destroy(struct Path *List)
-{
-    assert(List && List->Head && List->Tail);
-
-    log_debug("Destroying path list with %zu coordinate node(s).",
-	      List->length);
-
-    PATH_clear_coordinates(List);
-
-    List->Head = NULL;
-    List->Tail = NULL;
-    free(List);
-    List = NULL;
-	
-    return;
-}
-
-/* Returns the number of nodes in the list */
-size_t
-PATH_get_length(struct Path *List)
-{
-    return List->length;
-}
-
-/* Returns the current position when traversing the list */
-size_t
-PATH_get_position(struct Path *List)
-{
-    return List->journey_position;
-}
-
-/* Traverses the linked list one node and returns the associated
-   coordinate. The jouney position field is incremented to keep track
-   of the current location */
-struct Coordinate *
-PATH_get_next_coordinate(struct Path *List)
-{
-    if (List->journey_position > List->length) {
-	errno = EINVAL;
-	log_err("End of path.");
-	return NULL;
-    }
-
-    struct Coordinate *px = List->JourneyHead->px;
-    List->JourneyHead = List->JourneyHead->Next;
-    ++List->journey_position;
-
-    return px;
 }
 
 /* Deletes the Nth node, repairing the linked list appropriately. */
@@ -232,4 +199,37 @@ PATH_clear_coordinates(struct Path *List)
     }
 
     return;
+}
+
+/* Returns the number of nodes in the list */
+size_t
+PATH_get_length(struct Path *List)
+{
+    return List->length;
+}
+
+/* Returns the current position when traversing the list */
+size_t
+PATH_get_position(struct Path *List)
+{
+    return List->journey_position;
+}
+
+/* Traverses the linked list one node and returns the associated
+   coordinate. The jouney position field is incremented to keep track
+   of the current location */
+struct Coordinate *
+PATH_get_next_coordinate(struct Path *List)
+{
+    if (List->journey_position > List->length) {
+	errno = EINVAL;
+	log_err("End of path.");
+	return NULL;
+    }
+
+    struct Coordinate *px = List->JourneyHead->px;
+    List->JourneyHead = List->JourneyHead->Next;
+    ++List->journey_position;
+
+    return px;
 }
