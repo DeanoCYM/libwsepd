@@ -78,6 +78,14 @@ main(int argc, char *argv[])
     EPD_draw_path(Display, Route);
     PATH_clear_coordinates(Route);
 
+    /* Draw and 16x16 box */
+    PATH_append_coordinate(Route, 10, 20);
+    PATH_append_coordinate(Route, 10+16, 20);
+    PATH_append_coordinate(Route, 10+16, 20+16);
+    PATH_append_coordinate(Route, 10, 20+16);
+    PATH_append_coordinate(Route, 10, 20);
+    EPD_draw_path(Display, Route);
+
     EPD_refresh(Display);
     PATH_destroy(Route);
     EPD_destroy(Display);
