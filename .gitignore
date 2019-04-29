@@ -1,4 +1,4 @@
 TAGS
 *.o
 *.a
-wsepd_test
+*_test
