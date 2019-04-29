@@ -3,7 +3,7 @@ SPILOG?=0
 
 CC=cc
 CFLAGS= -Wall -Wextra -Wfatal-errors -g3 -O0 \
-	-DLOGLEVEL=$(LOGLEVEL) -DSPILOG=$(SPILOG)
+	-DLOGLEVEL=$(LOGLEVEL) -DSPILOG=$(SPILOG) -I./src
 
 LIBS=-lwiringPi -lm
 PREFIX?=/usr/local
@@ -18,7 +18,7 @@ TEST_OBJ=wsepd_test.o
 
 all: $(TARGET)
 
-%.o: %.c
+%.o: ./src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@ $(LIBS)
 
 %.a: $(OBJ)
@@ -27,7 +27,10 @@ all: $(TARGET)
 test: LOGLEVEL=3
 test: $(TEST_TGT)
 $(TEST_TGT): $(TEST_OBJ) $(TARGET)
-	$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $^ -o ./test/$@ $(LIBS)
+	-./test/$@
+%_test.o: ./test/%_test.c
+	$(CC) $(CFLAGS) -c $< -o $@ $(LIBS)
 
 clean:
 	rm -f $(TARGET)
